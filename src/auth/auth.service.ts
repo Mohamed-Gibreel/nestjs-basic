@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -39,6 +40,7 @@ export class AuthService {
       throw e;
     }
   }
+
   async signUp({ email, firstName, password }: AuthDto) {
     try {
       const hash = await argon.hash(password);
@@ -78,10 +80,24 @@ export class AuthService {
     };
     const token = await this.jwt.signAsync(payload, {
       expiresIn: '15m',
-      secret: this.config.get('TOKEN_SECRET'),
+      secret: this.config.get('JWT_SECRET'),
     });
     return {
       access_token: token,
     };
+  }
+
+  async validateUser({ sub, email }: { sub: number; email: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: email,
+        id: sub,
+      },
+    });
+    if (!user) {
+      throw new ForbiddenException();
+    }
+    delete user.hash;
+    return user;
   }
 }
