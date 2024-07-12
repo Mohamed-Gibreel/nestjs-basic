@@ -1,5 +1,5 @@
 services:
-  dev-db:
+  prod-db:
     image: postgres:13
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -12,13 +12,13 @@ services:
       start_period: 30s
       timeout: 10s
 
-  dev-nest:
+  prod-nest:
     image: nest:1.0
     build: .
     ports:
       - 3000:3000
     depends_on:
-      dev-db:
+      prod-db:
         condition: service_healthy
         restart: true
     command: sh -c "
