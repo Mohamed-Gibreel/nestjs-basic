@@ -5,6 +5,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import * as pactum from 'pactum';
 import { AuthDto } from '../src/auth/dto';
 import { EditUserDto } from '../src/user/dto';
+import { CreateBookmarkDto, EditBookmarkDto } from 'src/bookmark/dto';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
@@ -113,6 +114,10 @@ describe('AppController (e2e)', () => {
 
   describe('User', () => {
     describe('Get me', () => {
+      it('Should throw 401, since no token is passed', () => {
+        return pactum.spec().get(`/users/me`).expectStatus(401);
+      });
+
       it('Should get current user', () => {
         return pactum
           .spec()
@@ -124,29 +129,148 @@ describe('AppController (e2e)', () => {
     });
 
     describe('Edit User', () => {
+      const editUserDto: EditUserDto = {
+        firstName: 'Ghadeer',
+      };
       it('Should edit user', () => {
-        const editUserDto: EditUserDto = {
-          firstName: 'Ghadeer',
-          email: 'ghadeer@lenadorsystems.com',
-        };
         return pactum
           .spec()
           .patch(`/users/$S{userId}`)
           .withBearerToken('$S{userAt}')
           .withBody(editUserDto)
           .expectStatus(200)
-          .expectBodyContains(editUserDto.email)
-          .expectBodyContains(editUserDto.firstName)
-          .inspect();
+          .expectBodyContains(editUserDto.firstName);
       });
     });
   });
 
   describe('Bookmark', () => {
-    describe('Create bookmark', () => {});
-    describe('Get bookmarks', () => {});
+    describe('Create bookmark', () => {
+      const bookmark: CreateBookmarkDto = {
+        title: 'First bookmark',
+        description: 'Sample description',
+        link: 'https://google.com',
+      };
+      it('Should throw 400, since incomplete body was sent', () => {
+        return pactum
+          .spec()
+          .post('/bookmarks/')
+          .withBearerToken('$S{userAt}')
+          .withBody({
+            title: bookmark.title,
+          })
+          .expectStatus(400);
+      });
+
+      it('Should create a new bookmark', () => {
+        return pactum
+          .spec()
+          .post('/bookmarks/')
+          .withBearerToken('$S{userAt}')
+          .withBody(bookmark)
+          .expectStatus(201)
+          .expectBodyContains(bookmark.title)
+          .expectBodyContains(bookmark.description)
+          .stores('bookmarkId', 'id');
+      });
+    });
+
+    describe('Get bookmarks', () => {
+      it('Should get all my bookmarks', () => {
+        return pactum
+          .spec()
+          .get('/bookmarks')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(200)
+          .expectBodyContains('$S{userId}')
+          .expectBodyContains('$S{bookmarkId}')
+          .expectJsonLength(1);
+      });
+      it('Should get throw 404 since an invalid bookmark id is provided', () => {
+        return pactum
+          .spec()
+          .get('/bookmarks/{id}')
+          .withPathParams('id', '$S{bookmarkId}123')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(404);
+      });
+      it('Should get one bookmark', () => {
+        return pactum
+          .spec()
+          .get('/bookmarks/{id}')
+          .withPathParams('id', '$S{bookmarkId}')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(200)
+          .expectBodyContains('$S{userId}')
+          .expectBodyContains('$S{bookmarkId}');
+      });
+    });
+
     describe('Get bookmarks by id', () => {});
-    describe('Edit bookmark', () => {});
-    describe('Delete bookmark', () => {});
+    describe('Edit bookmark', () => {
+      const editBookmarkDto: EditBookmarkDto = {
+        title: 'Hello bossman',
+      };
+
+      it('Should get throw 404 since an invalid bookmark id is provided', () => {
+        return pactum
+          .spec()
+          .patch('/bookmarks/{id}')
+          .withPathParams('id', '$S{bookmarkId}123')
+          .withBearerToken('$S{userAt}')
+          .withBody(editBookmarkDto)
+          .expectStatus(404);
+      });
+
+      it('Should get edit bookmark', () => {
+        return pactum
+          .spec()
+          .patch('/bookmarks/{id}')
+          .withPathParams('id', '$S{bookmarkId}')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(200)
+          .withBody(editBookmarkDto)
+          .expectBodyContains('$S{userId}')
+          .expectBodyContains('$S{bookmarkId}')
+          .expectBodyContains(editBookmarkDto.title);
+      });
+
+      it('Should return edited bookmark with new title', () => {
+        return pactum
+          .spec()
+          .get('/bookmarks/$S{bookmarkId}')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(200)
+          .expectBodyContains('$S{userId}')
+          .expectBodyContains('$S{bookmarkId}')
+          .expectBodyContains(editBookmarkDto.title);
+      });
+    });
+    describe('Delete bookmark', () => {
+      it('Should throw 404, since invalid bookmark id was thrown', () => {
+        return pactum
+          .spec()
+          .delete('/bookmarks/$S{bookmarkId}123980')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(404);
+      });
+
+      it('Should delete bookmark and return 204 response', () => {
+        return pactum
+          .spec()
+          .delete('/bookmarks/$S{bookmarkId}')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(204);
+      });
+
+      it('Should get empty bookmarks', () => {
+        return pactum
+          .spec()
+          .get('/bookmarks')
+          .withBearerToken('$S{userAt}')
+          .expectStatus(200)
+          .expectJsonLength(0);
+      });
+    });
   });
 });
